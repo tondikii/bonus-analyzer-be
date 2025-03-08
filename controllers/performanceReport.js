@@ -166,7 +166,7 @@ const downloadPerformanceReport = async (req, res, next) => {
       workSheetData.push([
         idx + 1,
         e?.[0]?.employeeName,
-        ...e.map((f) => Number(f?.normalizedValue).toFixed(4)),
+        ...e.map((f) => Number(f?.normalizedValue / 100).toFixed(4)),
       ]);
     });
 
@@ -185,7 +185,7 @@ const downloadPerformanceReport = async (req, res, next) => {
       workSheetData.push([
         idx + 1,
         e?.[0]?.employeeName,
-        ...e.map((f) => Number(f?.normalizedWeight).toFixed(4)),
+        ...e.map((f) => Number(f?.normalizedWeight / 100).toFixed(4)),
       ]);
     });
 
@@ -202,7 +202,7 @@ const downloadPerformanceReport = async (req, res, next) => {
         idx + 1,
         e?.Employee?.name,
         idx + 1,
-        Number(e?.finalScore).toFixed(4),
+        Number(e?.finalScore / 100).toFixed(4),
       ]);
     });
 
