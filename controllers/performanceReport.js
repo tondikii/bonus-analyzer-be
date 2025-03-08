@@ -215,18 +215,15 @@ const downloadPerformanceReport = async (req, res, next) => {
       period.toString()
     ).getFullYear()}.xlsx`;
 
-    // **5. Simpan File**
-    const filePath = path.join(__dirname, fileName);
-    XLSX.writeFile(wb, filePath);
+    const buffer = XLSX.write(wb, {type: "buffer", bookType: "xlsx"});
 
-    // **6. Kirim File ke Client**
-    res.download(filePath, fileName, (err) => {
-      if (err) {
-        console.error(err);
-        next(err);
-      }
-      fs.unlinkSync(filePath);
-    });
+    res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+
+    res.send(buffer);
   } catch (err) {
     console.error(err);
     next(err);
