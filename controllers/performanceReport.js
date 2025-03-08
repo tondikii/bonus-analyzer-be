@@ -1,4 +1,8 @@
-const {calculatePerformanceScore} = require("../helpers/utils");
+const {
+  calculatePerformanceScore,
+  calculateNormalization,
+  addDaysToDate,
+} = require("../helpers/utils");
 
 const {
   PerformanceReport,
@@ -8,7 +12,9 @@ const {
   Employee,
 } = require("../models");
 
-const {Parser} = require("json2csv"); // npm install json2csv
+const XLSX = require("xlsx");
+const fs = require("fs");
+const path = require("path");
 
 const createPerformanceReport = async (req, res, next) => {
   try {
@@ -40,6 +46,7 @@ const createPerformanceReport = async (req, res, next) => {
           PerformanceId: createdPerformance.id,
           CriterionId: score.criterionId,
           score: score.score,
+          period,
         });
       }
     }
@@ -108,7 +115,7 @@ const downloadPerformanceReport = async (req, res, next) => {
   try {
     const {id} = req.params;
 
-    // Fetch the PerformanceReport with associated Performances and Employees
+    // Ambil data dari database
     const report = await PerformanceReport.findByPk(id, {
       include: [
         {
@@ -117,38 +124,109 @@ const downloadPerformanceReport = async (req, res, next) => {
             {
               model: Employee,
             },
+            {
+              model: Score,
+            },
           ],
         },
       ],
     });
 
+    const period = addDaysToDate(new Date(report?.period), 1);
+
+    const performances = report?.Performances || [];
+
     if (!report) {
       throw {name: "PerformanceReport not found"};
     }
 
-    const formattedPeriod = new Intl.DateTimeFormat("id", {
-      month: "long",
-      year: "numeric",
-    }).format(report?.period);
+    const criterion = await Criterion.findAll({order: [["weight", "DESC"]]});
 
-    // Prepare data for CSV
-    const data = report.Performances.map((performance, idx) => ({
-      No: idx + 1,
-      "Nama Karyawan": performance.Employee.name,
-      Hasil: performance.finalScore,
-      Periode: formattedPeriod,
-    }));
+    const normalizedMatrixWithWeight = calculateNormalization({
+      performances,
+      criterion,
+    });
 
-    // Define CSV fields
-    const fields = ["No", "Nama Karyawan", "Hasil", "Periode"];
-    const json2csvParser = new Parser({fields});
-    const csv = json2csvParser.parse(data);
+    const headerNormalizationCriteria = [
+      "Nomor",
+      "Nama Karyawan",
+      ...criterion.map(
+        (c) => `${c.name} (${c.weight}%) (${c.isBenefit ? "Benefit" : "Cost"})`
+      ),
+    ];
 
-    // Set headers
-    res.setHeader("Content-Type", "text/csv");
+    // **1. Buat Normalisasi Kriteria**
+    const workSheetData = [
+      ["", "", "", "Normalisasi Kriteria"],
+      ["", ""],
+      headerNormalizationCriteria,
+    ];
 
-    // Send CSV data
-    res.send(csv);
+    normalizedMatrixWithWeight.forEach((e, idx) => {
+      workSheetData.push([
+        idx + 1,
+        e?.[0]?.employeeName,
+        ...e.map((f) => Number(f?.normalizedValue).toFixed(4)),
+      ]);
+    });
+
+    workSheetData.push(["", ""]);
+    workSheetData.push(["", ""]);
+    workSheetData.push(["", ""]);
+
+    // **2. Pembobotan Kriteria**
+    workSheetData.push(
+      ["", "", "", "Pembobotan Kriteria"],
+      ["", ""],
+      headerNormalizationCriteria
+    );
+
+    normalizedMatrixWithWeight.forEach((e, idx) => {
+      workSheetData.push([
+        idx + 1,
+        e?.[0]?.employeeName,
+        ...e.map((f) => Number(f?.normalizedWeight).toFixed(4)),
+      ]);
+    });
+
+    workSheetData.push(["", ""]);
+    workSheetData.push(["", ""]);
+    workSheetData.push(["", ""]);
+
+    // **3. Tambah Perankingan**
+    const rankingHeader = ["Nomor", "Nama Karyawan", "Ranking", "Hasil"];
+    workSheetData.push(["", "Perangkingan Karyawan"], ["", ""], rankingHeader);
+
+    performances.forEach((e, idx) => {
+      workSheetData.push([
+        idx + 1,
+        e?.Employee?.name,
+        idx + 1,
+        Number(e?.finalScore).toFixed(4),
+      ]);
+    });
+
+    // **4. Buat Sheet dan Workbook**
+    const ws = XLSX.utils.aoa_to_sheet(workSheetData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Performance Report");
+
+    const fileName = `Performance_Report_${new Date(
+      period.toString()
+    ).getFullYear()}.xlsx`;
+
+    // **5. Simpan File**
+    const filePath = path.join(__dirname, fileName);
+    XLSX.writeFile(wb, filePath);
+
+    // **6. Kirim File ke Client**
+    res.download(filePath, fileName, (err) => {
+      if (err) {
+        console.error(err);
+        next(err);
+      }
+      fs.unlinkSync(filePath);
+    });
   } catch (err) {
     console.error(err);
     next(err);

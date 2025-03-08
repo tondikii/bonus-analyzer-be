@@ -2,10 +2,11 @@ const {Criterion, Appraisal, sequelize} = require("../models");
 
 const createCriteria = async (req, res, next) => {
   try {
-    const {name, weight} = req.body;
+    const {name, weight, isBenefit} = req.body;
     const createdCriteria = await Criterion.create({
       name,
       weight,
+      isBenefit,
     });
     res.status(201).json(createdCriteria);
   } catch (err) {
@@ -18,11 +19,12 @@ const updateCriteria = async (req, res, next) => {
     const {id} = req.params;
     const foundCriteria = await Criterion.findByPk(id);
     if (!foundCriteria) throw {name: "Criteria not found"};
-    const {name, weight} = req.body;
+    const {name, weight, isBenefit} = req.body;
     const updatedCriteria = await Criterion.update(
       {
         name,
         weight,
+        isBenefit,
       },
       {where: {id}, returning: true, plain: true}
     );

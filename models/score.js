@@ -34,6 +34,13 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         validate: {notNull: {msg: "score is required"}},
       },
+      period: {
+        allowNull: false,
+        type: DataTypes.DATE,
+        validate: {
+          notNull: {msg: "period is required"},
+        },
+      },
     },
     {
       sequelize,

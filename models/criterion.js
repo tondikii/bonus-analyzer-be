@@ -30,6 +30,13 @@ module.exports = (sequelize, DataTypes) => {
           notNull: {msg: "weight is required"},
         },
       },
+      isBenefit: {
+        allowNull: false,
+        type: DataTypes.BOOLEAN,
+        validate: {
+          notNull: {msg: "isBoolean is required"},
+        },
+      },
     },
     {
       sequelize,
